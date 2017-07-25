@@ -1,28 +1,26 @@
 netmonkey
 =========
 
-## A simple framework for managing network devices, based on netmiko
-
 Run arbitrary commands against an arbitrary list of devices, using multithreading for better performance.
 
 **Note:** This project's main purpose was to give me a way to learn Python, netmiko, and network automation in general. The project is currently tightly coupled to my environment, is not fully implemented, and not exhaustively tested. Suggestions and contributions welcome.
 
-#### Requires
+## Requires
 
 * [netmiko](https://github.com/ktbyers/netmiko) - Multi-vendor network device SSH library
 * [tqdm](https://github.com/tqdm/tqdm) - Simple and extensible progress bars
 * [orionsdk](https://github.com/solarwinds/OrionSDK) - Query SolarWinds Orion using SWQL
 
-#### Overview
+## Overview
 
 
-###### Purpose
-I wanted to take the heavy lifting (or you might say, monkey work ;) out of managing hundreds of network devices. Much of what netmonkey does, [napalm](https://github.com/napalm-automation/napalm) can do better. However, netmonkey is intentionally lightweight, lending itself well to basic one-off operations.
+#### Purpose
+I wanted to take the heavy lifting (or you might say, monkey work ;) out of managing hundreds of network devices. Much of what netmonkey does, [NAPALM](https://github.com/napalm-automation/napalm) can do better. However, netmonkey is intentionally lightweight, lending itself well to basic one-off operations.
 
 I work in K12 on disparate campus networks, so large-scale automation is mostly out of the question. This makes toolchains like NAPALM and Ansible a bit unwieldy, although I fully intend to learn and use them as much as possible.
 
 
-###### Limitations
+#### Limitations
 
 As a pet project, this comes with some fine print for now:
 
@@ -30,14 +28,14 @@ As a pet project, this comes with some fine print for now:
 * **Not extensively tested.** Don't expect miracles, use at your own risk.
 * **Assumes SolarWinds Orion.** Uses SWQL to query Orion for devices based on custom properties for my environment. Have a look at the `get_devices()` method for info on how to set it up, and how you might adapt it to your environment.
 
-###### Conventions
+#### Conventions
 
 * Wherever the keyword or variable `host` is used in the source, this refers to any routable identifier for a device: IP address, hostname, or FQDN.
 * All functions accept single hostnames (strings), lists, or custom SWQL queries for host targets
 
-#### Usage
+## Usage
 
-###### Retrieve device info
+#### Retrieve device info
 `netmonkey.show()` accepts two paramters: the `show` command to run, and device(s) to run against. The method automatically prepends "show " to the command, so `show ip int br` would be called as `netmonkey.show('ip int br', 'rtr1')`
 ```py
 >>> import netmonkey
@@ -51,12 +49,12 @@ Progress: 100%|##########################################| 2/2 [00:06<00:00,  2.
 >>>
 ```
 
-###### Retrieve devices from SolarWinds
+#### Retrieve devices from SolarWinds
 ```py
 netmonkey.get_devices(name="sw*") # Retrieves all devices with hostnames beginning with 'sw'
 ```
 
-###### Combine the two
+#### Combine the two
 
 ```py
 >>> print netmonkey.show('snmp location', netmonkey.get_devices(name="sw*"))
