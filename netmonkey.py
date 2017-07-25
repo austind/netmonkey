@@ -112,7 +112,7 @@ def orion_init():
     # https://github.com/solarwinds/orionsdk-python#ssl-certificate-verification
     # this disables the SubjectAltNameWarning
     urllib3.disable_warnings()
-    return orionsdk.SwisClient('SolarWinds-Orion', orion_username, orion_password, verify='server.pem')
+    return orionsdk.SwisClient('SolarWinds-Orion', orion_username, orion_password, verify='../server.pem')
 
 def get_devices(*args, **kwargs):
     """ Retrieve a list of hosts for later use.
@@ -458,7 +458,7 @@ def batch(targets, worker, argument_list=None, threads=THREADS):
     # TODO: This just isn't acceptable. There needs to be some kind of timeout
     # so a single failed thread doesn't hang the whole job. I know there is 
     # a timeout argument in the get() method of queues, look into that.
-    pbar = tqdm(total=len(targets), desc='Progress', unit='Device')
+    pbar = tqdm(total=len(targets), desc='Progress', unit='Device', ascii=True)
     progress = 0
     while len(result_list) <= len(targets):
         pbar.update(len(result_list) - progress)
