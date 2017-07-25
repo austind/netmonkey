@@ -1,12 +1,3 @@
-# I wonder if I could somehow subclass the entire netmiko ConnectHandler class
-# to inherit all its properties and methods, only adding my own.
-
-# It's pretty clear at this point I'm basically wrapping functions around the
-# netmiko class. Why not include functions in the class itself instead?
-
-
-
-
 import os
 import netmiko
 import orionsdk
@@ -19,8 +10,12 @@ import re
 from time import sleep
 import socket
 
-username = ''
-password = ''
+# Usage of globals is bad, I know. I use them so I don't have to keep
+# re-entering my creds with every function call, and without needing
+# to store plaintext creds. I can't use keyring because I haven't
+# figured out how to use it on my headless jumphost.
+network_username = ''
+network_password = ''
 telnet_password = ''
 secret = ''
 orion_username = ''
@@ -89,15 +84,15 @@ def get_creds():
     Prompts for credentials that are stored in global variables for reuse
     """
     global default_username
-    global username
-    global password
+    global network_username
+    global network_password
     global telnet_password
     global secret
     default_username = getuser()
-    if not username or not password or not telnet_password or not secret:
-        username = raw_input('Cisco username [' + default_username + ']: ') or default_username
-        password = getpass('Cisco password: ')
-        telnet_password = getpass('Cisco telnet password: ') or None
+    if not network_username or not network_password or not telnet_password or not secret:
+        network_username = raw_input('Network username [' + default_username + ']: ') or default_username
+        network_password = getpass('Network password: ')
+        telnet_password = getpass('Telnet password: ') or None
         secret = getpass('Enable secret: ')
 
 def orion_init():
@@ -220,8 +215,8 @@ def connect(host):
     
         Returns session object, or exception if none could be created.
     """
-    global username
-    global password
+    global network_username
+    global network_password
     global telnet_password
     global secret
     get_creds()
@@ -231,8 +226,8 @@ def connect(host):
             device = {
                 'device_type': 'cisco_ios_' + open_proto['name'],
                 'ip': host,
-                'username': username,
-                'password': password,
+                'username': network_username,
+                'password': network_password,
                 'secret': secret,
                 'port': open_proto['port'],
                 'verbose': False
