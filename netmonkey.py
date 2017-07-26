@@ -143,7 +143,7 @@ def get_devices(*args, **kwargs):
         # Read base query from file
         # TODO: Ensure file exists
         base_query_file = open('base-query.swql')
-        query = base_query_file.readlines()
+        query = base_query_file.read()
         base_query_file.close()
 
         # Can't append this to the query until we have all filters in place
