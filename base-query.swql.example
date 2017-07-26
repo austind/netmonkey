@@ -1,0 +1,3 @@
+SELECT Caption, IPAddress, Location
+FROM Orion.Nodes
+WHERE Vendor = 'Cisco'
