@@ -80,8 +80,7 @@ def prompt(query):
     return ret
 
 def get_creds():
-    """
-    Prompts for credentials that are stored in global variables for reuse
+    """ Prompts for credentials that are stored in global variables for reuse
     """
     global default_username
     global network_username
@@ -96,8 +95,7 @@ def get_creds():
         secret = getpass('Enable secret: ')
 
 def orion_init():
-    """
-    Prompts for Orion credentials and returns a SwisClient object
+    """ Prompts for Orion credentials and returns a SwisClient object
     """
     global orion_server
     global orion_username
