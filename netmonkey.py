@@ -142,25 +142,20 @@ def get_devices(*args, **kwargs):
         # Initialize Orion connection
         swis = orion_init()
      
-        columns = [
-            'Caption', # Short hostname, e.g. router1
-            'IPAddress',
-            'Location', # SNMP sysLocation field
-        ]
+        # Read base query from file
+        # TODO: Ensure file exists
+        base_query_file = open('base-query.swql')
+        query = base_query_file.readlines()
+        base_query_file.close()
 
-        # Build base query
-        query = "SELECT %s\n" % (', '.join(columns))
-        query += "FROM Orion.Nodes\n"
-        query += "WHERE Vendor = 'Cisco'\n"
+        # Can't append this to the query until we have all filters in place
+        query_order = "ORDER BY caption\n"
 
-        # I can't append this to the query until we have all filters in place
-        order = "ORDER BY caption\n"
-
-        # Special keyword 'all' retrieves all Cisco devices in Orion
+        # Special keyword 'all' retrieves all devices returned by the base query
+        # without further filtering.
         if args and str(args[0]) == 'all':
-            # No further refinement necessary
-            query += order
-            return swis.query(query)
+            query += query_order
+            return (swis.query(query))['results']
         # Otherwise, check to see if we are parsing by district/site
         elif kwargs:
             query += 'AND '
@@ -176,7 +171,7 @@ def get_devices(*args, **kwargs):
                 name = name.replace('*', '%')
                 query_filter.append("Caption LIKE '%s'\n" % name)
             query += ' AND '.join(query_filter)
-            query += order
+            query += query_order
             return (swis.query(query))['results']
 
 def is_online(host):
