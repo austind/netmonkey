@@ -11,7 +11,6 @@ import re
 from time import sleep
 import socket
 
-
 # Usage of globals is bad, I know. I use them so I don't have to keep
 # re-entering my creds with every function call, and without needing
 # to store plaintext creds. I can't use keyring because I haven't
@@ -27,9 +26,9 @@ orion_password = ''
 # Typically, multiprocessing pools are set to use the number of cores
 # available on the server. However, in our case, the threads are not
 # CPU-intensive, so we can get away with a lot more. Experimentation has shown
-# that 40 strikes a good balance. Fewer means slower performance, more means
+# that 50 strikes a good balance. Fewer means slower performance, more means
 # maxing out system resources.
-THREADS = 40
+THREADS = 50
 
 
 class NetmonkeyError(Exception):
@@ -172,6 +171,7 @@ def get_devices(*args, **kwargs):
 
 def is_online(host):
     """ Pings hostname once and returns true if response received. """
+    # TODO: Investigate refactoring this using socket instead of os.system
     # '> /dev/null 2>&1' redirects stderr to stdout, and stdout to null.
     # In other words, print nothing at all.
     response = os.system('ping -q -c 1 ' + host + ' > /dev/null 2>&1')
@@ -264,26 +264,25 @@ def run(function, target):
     """ Runs a custom function in parallel and returns aggregate output. """
     return batch(target, command, ['fn', function])
 
-def print_results(results):
+def print_results(results, errlvl=0):
     """ Prints results from command() in human-readable format.
         Mostly useful for debugging.
 
     """
     for result in results:
         for hostname, output in result.iteritems():
-            print hostname
-            for k, v in output.iteritems():
-                print " - %s: %s" % (k, v)
+            if output['status'] >= errlvl:
+                print "%s:%s - [%s] %s" % (hostname, output['port'], output['status'], output['message'])
 
-def print_errors(results):
-    """ Prints results from command() in human-readable format, omitting
-        successful connections, i.e. status == 0
-    """
-
-    for result in results:
-        for hostname, output in result.iteritems():
-            if output['status'] != 0:
-                print "%s (Error %s): %s" % (hostname, output['status'], output['message'])
+#def print_errors(results):
+#    """ Prints results from command() in human-readable format, omitting
+#        successful connections, i.e. status == 0
+#    """
+#
+#    for result in results:
+#        for hostname, output in result.iteritems():
+#            if output['status'] != 0:
+#                print "%s:%s - [%s] %s" % (hostname, output['port'], output['status'], output['message'])
 
 def command(target, cmd_type, cmd, result_list=None):
     """ Runs arbitrary commands or functions against a single target device. """
@@ -310,7 +309,8 @@ def command(target, cmd_type, cmd, result_list=None):
     # - 1: Host offline
     # - 2: Ports 22 and 23 are both closed
     # - 3: Invalid credentials
-    # - 4+: Available for use in custom functions
+    # - 4: SSH exception
+    # - 5+: Available to custom functions
     # Message:
     # - if status == 0, the result of command(s) given
     # - if status != 0, description of error
@@ -396,6 +396,7 @@ def command(target, cmd_type, cmd, result_list=None):
         # arbitrary arguments, not just the session object.
         if cmd_type == 'fn':
             output = cmd(session)
+            status, message = output
         # Otherwise, proceed to run the commands literally as show or config
         # commands.
         else:
@@ -409,11 +410,14 @@ def command(target, cmd_type, cmd, result_list=None):
                 write_config(session)
                 backup_config(session)
             session.disconnect()
-    
+            status = 0
+            message = output
+
         return_data[host] = {
+            # Status 0: Success or no changes made.
             'port': session.port,
-            'status': 0,
-            'message': output
+            'status': status,
+            'message': message
         }
         
     result_list.append(return_data)
