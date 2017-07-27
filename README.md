@@ -17,10 +17,10 @@ I signed up for @ktbyers' Python training course after finding it on /r/networki
 Some other requirements I came up with:
 * Detect ssh/telnet support on-the-fly (yes, I know...)
 * Request credentials in a fairly secure way, storing only in memory during runtime
-* Run sessions in parallel, because screenscraping IOS is *s.l.o.w.*
+* Run sessions in parallel, because screenscraping IOS is **s.l.o.w.**
 * Provide several ways of supplying host lists
-   * Ad-hoc single host (as a string)
-   * Ad-hoc multiple hosts (as a list)
+   * Ad-hoc single host (as a `string`)
+   * Ad-hoc multiple hosts (as a `list`)
    * Hosts from a plaintext file
    * Retrieved directly from our NPM (SolarWinds Orion) providing optional filters (since they have a handy API and Python module!)
 * Run arbitrary show commands against any number of hosts, returning the output
@@ -93,3 +93,106 @@ Enable secret:
 Progress: 100%|#########################################################| 7/7 [00:06<00:00, 13.97Device/s]
 [{u'sw01': {'status': 0, 'message': u'Room 9 (IDF3)', 'port': 22}}, {u'sw02': {'status': 0, 'message': u'MDF1A', 'port': 22}}, {u'sw03': {'status': 0, 'message': u'MDF', 'port': 22}}, {u'sw04': {'status': 0, 'message': u'MDF 1B', 'port': 22}}, {u'sw05': {'status': 0, 'message': u'Room 16 (IDF2)', 'port': 22}}, {u'sw06': {'status': 0, 'message': u'Gym Closet West (IDF1)', 'port': 22}}, {u'sw07': {'status': 0, 'message': u'MDF 1C', 'port': 22}}]
 ```
+
+I just pulled data from 7 devices in one line of Python in 6 seconds. Not too shabby!
+
+Output follows a list/dictionary format to make it easier for further programmatic parsing:
+
+```py
+[
+    {
+        'host1' = {
+            'status': 0                     # Status codes. See source of netmonkey.command() for all code meanings
+            'message': "Sample output"      # Output from successful command, or error message from exception
+            'port': 22                      # Port connected to (None if no connection made)
+    }
+]
+```
+
+### Human-readable output
+
+Maybe you don't want to further parse the output, and you just want to see it in a human-readable format.
+
+```py
+>>> results = netmonkey.show('snmp location', netmonkey.get_devices(name="sw*"))
+# password prompts and progress bar omitted
+>>> netmonkey.print_results(results)
+sw01:22 - [0] Room 9 (IDF3)
+sw02:22 - [0] MDF1A
+sw03:22 - [0] MDF
+sw04:22 - [0] MDF 1B
+sw05:22 - [0] Room 16 (IDF2)
+sw06:22 - [0] Gym Closet West (IDF1)
+sw07:22 - [0] MDF 1C
+```
+
+### One-line config changes
+
+Follow the same pattern as above for show commands, except with `netmonkey.config()` instead. This will:
+* Connect to the host
+* Enter enable mode
+* Enter config mode
+* Send config change
+* Write config
+* Backup config via TFTP (using in-house backup alias)
+* Disconnect from the host
+
+**WARNING:** Please review the source for `netmonkey.config()` before using this in production. I call a custom backup alias that you will need to change or add before using.
+
+```py
+>>> netmonkey.config('clock timezone PST -8 0', netmonkey.get_devices(name="sw*")) # Output omitted
+```
+
+### Custom functions
+
+Running single show/config commands are cool and all, but what about doing some real custom work? What if you need to include some logic, applying certain values only if other values exist?
+
+You can define your own function as if it were being run against a single `netmiko` session object, then call the function with `netmonkey.run()`, optionally pairing it with `netmonkey.get_devices()`, to run it in parallel against dozens or hundreds of hosts.
+
+```py
+from netmonkey import netmonkey
+
+# For now, the only arguments custom methods accept is the session object.
+# Adding custom arguments is coming in a future release.
+def new_user(session):
+
+    # Enter enable mode
+    session.enable()
+
+    # All of `netmiko`'s methods are available (see https://pynet.twb-tech.com/blog/automation/netmiko.html)
+    users = session.send_command('show running-config | include username')
+
+    # Only move forward if 'newuser' isn't already in the running-config
+    if 'newuser' not in users:
+        
+        # Enter config mode
+        session.config_mode()
+
+        output = session.send_command('username newuser secret 5 $1$Z30o$.......')
+
+        # Write changes to flash
+        session.send_command('copy running-config startup-config')
+        
+        # Call backup alias (custom to my environment)
+        session.send_command('backup')
+
+        # Return values are a tuple of ([int]statuscode, [string]message)
+        # Status codes 0-6 are reserved, use anything from 7+
+        return (7, "Added user 'newuser' successfully.")
+    else:
+        return (0, "User 'newuser' already present in config.")
+
+# Make a list of devices you want 'newuser' added to
+devices = ['sw01', 'rtr01']
+
+# Or like in my case, I want 'newuser' on all devices
+devices = netmonkey.get_devices(name='*')
+
+# Call our custom new_user() method, parallelizing across all hosts
+results = netmonkey.run(new_user, devices)
+
+# Print results in human-readable format, skipping devices that already have 'newuser'
+netmonkey.print_results(results, 1) # 1 is the minimum status code that will be displayed (ignores 0)
+```
+
+The output will be a human-readable list of only devices that either successfully added 'newuser', or had a problem (e.g., not network-reachable, no open SSH/telnet ports, bad credentials)
