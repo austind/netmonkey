@@ -363,6 +363,12 @@ def command(target, cmd_type, cmd, result_list=None):
             'message': error
         }
         pass
+    except ValueError as e:
+        return_data[host] = {
+            'port': port,
+            'status': 4,
+            'message': str(e)
+        }
     
     if session:
         # If we have been passed an actual function as cmd_type, call that
@@ -393,8 +399,8 @@ def command(target, cmd_type, cmd, result_list=None):
     else:
         return_data[host] = {
             'port': None,
-            'status': 4,
-            'message': 'Unknown error occurred, sorry.'
+            'status': 5,
+            'message': 'Unable to create session with device.'
         }
         
     # Since the result_list is passed as an empty list,
@@ -430,6 +436,7 @@ def batch(targets, worker, argument_list=None, threads=THREADS):
     result_list = manager.list()
     
     # For all targets, add a job to the pool
+    jobs = []
     for target in targets:
         if not argument_list:
             worker_args = [target, result_list]
@@ -439,11 +446,17 @@ def batch(targets, worker, argument_list=None, threads=THREADS):
             worker_args = argument_list[:]
             worker_args.insert(0, target)
             worker_args.append(result_list)
-        pool.apply_async(worker, args = tuple(worker_args))
+        jobs.append(tuple(worker_args))
     
+    results = [pool.apply_async(worker, args = j) for j in jobs]
+
     # Closing the pool means no other jobs will be submitted
     pool.close()
-
+    
+    for result in tqdm(results, desc='Progress', unit='Device', ascii=True):
+        result.get(timeout=60)
+    
+    
     # Progress bar
 
     # tqdm() is much simpler if you can call an iterable with it.
@@ -455,15 +468,15 @@ def batch(targets, worker, argument_list=None, threads=THREADS):
     # TODO: This just isn't acceptable. There needs to be some kind of timeout
     # so a single failed thread doesn't hang the whole job. I know there is 
     # a timeout argument in the get() method of queues, look into that.
-    pbar = tqdm(total=len(targets), desc='Progress', unit='Device', ascii=True)
-    progress = 0
-    while len(result_list) <= len(targets):
-        pbar.update(len(result_list) - progress)
-        progress = len(result_list)
-        if progress == len(targets):
-            break
-        # Check for progress updates every half second
-        sleep(0.5)
-    pbar.close()
+    #pbar = tqdm(total=len(targets), desc='Progress', unit='Device', ascii=True)
+    #progress = 0
+    #while len(result_list) <= len(targets):
+    #    pbar.update(len(result_list) - progress)
+    #    progress = len(result_list)
+    #    if progress == len(targets):
+    #        break
+    #    # Check for progress updates every half second
+    #    sleep(0.5)
+    #pbar.close()
 
     return result_list
