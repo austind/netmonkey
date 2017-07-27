@@ -125,18 +125,24 @@ def get_devices(*args, **kwargs):
     """
 
     if args:
+        # Hosts file
+        if os.path.isfile(str(args[0])):
+            host_file = open(args[0], 'rb')
+            host_list = host_file.read().splitlines()
+            host_file.close()
+            return host_list
+
         # Single host
-        if type(args[0]) is str:
+        elif type(args[0]) is str:
             # Returns as a single-item list
             # This is important since most methods below iterate,
             # and a string is not iterable.
             return args[0].split()
+        
         # If hosts given as list, simply return that list again
         elif type(args[0]) is list or type(args[0]) is dict:
             return args[0]
-    # TODO: If source is a file, read that
-    elif args and os.path.isfile(str(args[0])):
-        pass
+        
     # Otherwise assume the source is a SWQL query
     elif kwargs:
         # Initialize Orion connection
@@ -224,7 +230,10 @@ def connect(host):
                 'verbose': False
             }
             try:
-                return netmiko.ConnectHandler(**device)
+                session = netmiko.ConnectHandler(**device)
+                if session:
+                    session.enable()
+                    return session
             except netmiko.ssh_exception.NetMikoAuthenticationException:
                 # If my creds are rejected, try the generic telnet password
                 device['password'] = telnet_password
@@ -274,16 +283,6 @@ def print_results(results, errlvl=0):
             if output['status'] >= errlvl:
                 print "%s:%s - [%s] %s" % (hostname, output['port'], output['status'], output['message'])
 
-#def print_errors(results):
-#    """ Prints results from command() in human-readable format, omitting
-#        successful connections, i.e. status == 0
-#    """
-#
-#    for result in results:
-#        for hostname, output in result.iteritems():
-#            if output['status'] != 0:
-#                print "%s:%s - [%s] %s" % (hostname, output['port'], output['status'], output['message'])
-
 def command(target, cmd_type, cmd, result_list=None):
     """ Runs arbitrary commands or functions against a single target device. """
 
@@ -310,7 +309,8 @@ def command(target, cmd_type, cmd, result_list=None):
     # - 2: Ports 22 and 23 are both closed
     # - 3: Invalid credentials
     # - 4: SSH exception
-    # - 5+: Available to custom functions
+    # - 5: ValueError from Netmiko, usually bad enable secret
+    # - 6+: Available to custom functions
     # Message:
     # - if status == 0, the result of command(s) given
     # - if status != 0, description of error
@@ -321,6 +321,7 @@ def command(target, cmd_type, cmd, result_list=None):
         raise InvalidCommandTypeError('cmd_type must be either "show", "config", or "fn"')
     
     # TODO: If cmd is a file, send batch file
+
     # If we received the target via SWQL query, we need to parse the dictionary
     # to get the actual hostname or IP.
     # The other fields of the query such as Location are not used here, but could
@@ -380,15 +381,32 @@ def command(target, cmd_type, cmd, result_list=None):
         }
         pass
 
+    except netmiko.ssh_exception.NetMikoTimeoutException as e:
+        # Error 3: Timeout
+        return_data[host] = {
+            'port': None,
+            'status': 4,
+            'message': str(e)
+        }
+
     except SSHException as e:
         # Error 4: SSH exception
         return_data[host] = {
             'port': 22,
-            'status': 4,
+            'status': 5,
             'message': str(e)
         }
         pass
     
+    except ValueError as e:
+        # Error 5: Bad enable secret
+        return_data[host] = {
+            'port': None,
+            'status': 6,
+            'message': str(e)
+        }
+        pass
+
     if session:
         # If we have been passed an actual function as cmd_type, call that
         # function with the session variable passed.
