@@ -1,5 +1,6 @@
 import os
 import netmiko
+from paramiko.ssh_exception import SSHException
 import orionsdk
 from getpass import (getpass, getuser)
 from distutils.util import strtobool
@@ -361,12 +362,10 @@ def command(target, cmd_type, cmd, result_list=None):
         # Otherwise, check to see if we are parsing by district/site
         
         error = str(e)
-        if '_ssh' in error:
+        if ':22' in error:
             port = 22
         if 'Telnet' in error:
             port = 23
-        else:
-            port = None
         return_data[host] = {
             'port': port,
             'status': 3,
@@ -377,6 +376,13 @@ def command(target, cmd_type, cmd, result_list=None):
         return_data[host] = {
             'port': port,
             'status': 4,
+            'message': str(e)
+        }
+        pass
+    except SSHException as e:
+        return_data[host] = {
+            'port': port,
+            'status': 5,
             'message': str(e)
         }
     
@@ -405,12 +411,6 @@ def command(target, cmd_type, cmd, result_list=None):
             'port': session.port,
             'status': 0,
             'message': output
-        }
-    else:
-        return_data[host] = {
-            'port': None,
-            'status': 5,
-            'message': 'Unable to create session with device.'
         }
         
     # Since the result_list is passed as an empty list,
