@@ -281,7 +281,8 @@ def print_errors(results):
 
     for result in results:
         for hostname, output in result.iteritems():
-            print "%s\t%s: %s" % (hostname, output['status'], output['message'])
+            if output['status'] != 0:
+                print "%s (Error %s): %s" % (hostname, output['status'], output['message'])
 
 def command(target, cmd_type, cmd, result_list=None):
     """ Runs arbitrary commands or functions against a single target device. """
