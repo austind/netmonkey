@@ -10,6 +10,7 @@ import re
 from time import sleep
 import socket
 
+
 # Usage of globals is bad, I know. I use them so I don't have to keep
 # re-entering my creds with every function call, and without needing
 # to store plaintext creds. I can't use keyring because I haven't
@@ -25,16 +26,16 @@ orion_password = ''
 # Typically, multiprocessing pools are set to use the number of cores
 # available on the server. However, in our case, the threads are not
 # CPU-intensive, so we can get away with a lot more. Experimentation has shown
-# that 20 strikes a good balance. Fewer means slower performance, more means
+# that 40 strikes a good balance. Fewer means slower performance, more means
 # maxing out system resources.
-THREADS = 20
+THREADS = 40
 
 
-class NetError(Exception):
+class NetmonkeyError(Exception):
     """ Base class for exceptions in this module. """
     pass
 
-class HostOfflineError(NetError):
+class HostOfflineError(NetmonkeyError):
     """ Raised when an attempt is made to connect to a host that is not
        network reachable.
 
@@ -47,7 +48,7 @@ class HostOfflineError(NetError):
         self.host = host
         self.msg = msg
 
-class NoOpenPortError(NetError):
+class NoOpenPortError(NetmonkeyError):
     """ Raised when an attempt is made to connect to a host that does
         not have either SSH or telnet available (ports 22 or 23, respectively).
 
@@ -60,7 +61,7 @@ class NoOpenPortError(NetError):
         self.host = host
         self.msg = msg
 
-class InvalidCommandTypeError(NetError):
+class InvalidCommandTypeError(NetmonkeyError):
     """ Raised when a command type is given that is not either 'show' or 'config'
     """
 
@@ -110,7 +111,8 @@ def orion_init():
     # https://github.com/solarwinds/orionsdk-python#ssl-certificate-verification
     # this disables the SubjectAltNameWarning
     urllib3.disable_warnings()
-    return orionsdk.SwisClient('SolarWinds-Orion', orion_username, orion_password, verify='../server.pem')
+    # TODO: Need a better/more resilient way of referencing server cert.
+    return orionsdk.SwisClient('SolarWinds-Orion', orion_username, orion_password, verify='server.pem')
 
 def get_devices(*args, **kwargs):
     """ Retrieve a list of hosts for later use.
@@ -133,44 +135,39 @@ def get_devices(*args, **kwargs):
         elif type(args[0]) is list or type(args[0]) is dict:
             return args[0]
     # TODO: If source is a file, read that
-    elif args and isfile(str(args[0])):
+    elif args and os.path.isfile(str(args[0])):
         pass
     # Otherwise assume the source is a SWQL query
-    else:
+    elif kwargs:
         # Initialize Orion connection
         swis = orion_init()
      
         # Read base query from file
-        # TODO: Ensure file exists
-        base_query_file = open('base-query.swql')
+        # TODO: This seems wrong. Not sure how to abstract the base SWQL query
+        # properly. Should it be a file or somehow hardcoded?
+        module_dir = os.path.split(os.path.abspath(__file__))[0]
+        base_query_file = open(module_dir + '/base-query.swql')
         query = base_query_file.read()
         base_query_file.close()
 
         # Can't append this to the query until we have all filters in place
-        query_order = "ORDER BY caption\n"
+        query_order = "ORDER BY Caption\n"
 
-        # Special keyword 'all' retrieves all devices returned by the base query
-        # without further filtering.
-        if args and str(args[0]) == 'all':
-            query += query_order
-            return (swis.query(query))['results']
-        # Otherwise, check to see if we are parsing by district/site
-        elif kwargs:
-            query += 'AND '
-            query_filter = []
-            district = kwargs.get('district')
-            site = kwargs.get('site')
-            name = kwargs.get('name')
-            if district:
-                query_filter.append("Nodes.CustomProperties.School_District = '%s'\n" % district)
-            if site:
-                query_filter.append("Nodes.CustomProperties.School_Site = '%s'\n" % site)
-            if name:
-                name = name.replace('*', '%')
-                query_filter.append("Caption LIKE '%s'\n" % name)
-            query += ' AND '.join(query_filter)
-            query += query_order
-            return (swis.query(query))['results']
+        query += 'AND '
+        query_filter = []
+        district = kwargs.get('district')
+        site = kwargs.get('site')
+        name = kwargs.get('name')
+        if district:
+            query_filter.append("Nodes.CustomProperties.School_District = '%s'\n" % district)
+        if site:
+            query_filter.append("Nodes.CustomProperties.School_Site = '%s'\n" % site)
+        if name:
+            name = name.replace('*', '%')
+            query_filter.append("Caption LIKE '%s'\n" % name)
+        query += ' AND '.join(query_filter)
+        query += query_order
+        return (swis.query(query))['results']
 
 def is_online(host):
     """ Pings hostname once and returns true if response received. """
@@ -199,7 +196,7 @@ def check_proto(host):
 def sanitize_host(host):
     """ Removes extraneous characters from a hostname, leaves an IP untouched. """
     if re.match(r'[a-zA-Z]', host):
-        return host.replace('_', '-').replace('.', '').strip()
+        return host.split()[0].strip().replace('_', '-').replace('.', '')
     else:
         return host
 
@@ -351,6 +348,7 @@ def command(target, cmd_type, cmd, result_list=None):
         # was attempted from the authentication exception.
         # This seems ugly to me, it seems even uglier to me to do something
         # with connect(), which, I feel, behaves as it should.
+        # Otherwise, check to see if we are parsing by district/site
         
         error = str(e)
         if '_ssh' in error:
@@ -391,6 +389,12 @@ def command(target, cmd_type, cmd, result_list=None):
             'port': session.port,
             'status': 0,
             'message': output
+        }
+    else:
+        return_data[host] = {
+            'port': None,
+            'status': 4,
+            'message': 'Unknown error occurred, sorry.'
         }
         
     # Since the result_list is passed as an empty list,
