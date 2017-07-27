@@ -339,21 +339,28 @@ def command(target, cmd_type, cmd, result_list=None):
 
     try:
         session = connect(host)
+
     except HostOfflineError as e:
+        # Error 1: Host is not network-reachable.
         return_data[host] = {
             'port': None,
             'status': 1,
             'message': e.msg
         }
         pass
+
     except NoOpenPortError as e:
+        # Error 2: Neither port 22 nor 23 is open.
         return_data[host] = {
             'port': None,
             'status': 2,
             'message': e.msg
         }
         pass
+
     except netmiko.ssh_exception.NetMikoAuthenticationException as e:
+        # Error 3: Authentication failure - provided credentials rejected.
+
         # I can get the port from the session object if it's created,
         # but if there is no session object, I have to infer the port that
         # was attempted from the authentication exception.
@@ -361,7 +368,7 @@ def command(target, cmd_type, cmd, result_list=None):
         # with connect(), which, I feel, behaves as it should.
         # Otherwise, check to see if we are parsing by district/site
         
-        error = str(e)
+        error = str(e).replace('\n', '-')
         if ':22' in error:
             port = 22
         if 'Telnet' in error:
@@ -369,22 +376,18 @@ def command(target, cmd_type, cmd, result_list=None):
         return_data[host] = {
             'port': port,
             'status': 3,
-            'message': error
+            'message': 'Authentication failure - provided credentials rejected.'
         }
         pass
-    except ValueError as e:
+
+    except SSHException as e:
+        # Error 4: SSH exception
         return_data[host] = {
-            'port': port,
+            'port': 22,
             'status': 4,
             'message': str(e)
         }
         pass
-    except SSHException as e:
-        return_data[host] = {
-            'port': port,
-            'status': 5,
-            'message': str(e)
-        }
     
     if session:
         # If we have been passed an actual function as cmd_type, call that
@@ -413,17 +416,6 @@ def command(target, cmd_type, cmd, result_list=None):
             'message': output
         }
         
-    # Since the result_list is passed as an empty list,
-    # we can't just do `if result_list:`, which evaluates to false.
-    # (Since an empty list evaluates to false, even though the variable
-    # exists)
-    # Basically, if the result_list argument is passed, used it,
-    # otherwise, return return_data directly.
-    #if 'result_list' in locals():
-    #    result_list.append(return_data)
-    #else:
-    #    return return_data
-
     result_list.append(return_data)
     return return_data
 
