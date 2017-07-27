@@ -1,37 +1,64 @@
 netmonkey
 =========
 
-Run arbitrary commands against an arbitrary list of devices, using multithreading for better performance.
-
-**Note:** This project's main purpose was to give me a way to learn Python, netmiko, and network automation in general. The project is currently tightly coupled to my environment, is not fully implemented, and not exhaustively tested. Suggestions and contributions welcome.
-
 ## Requires
 
 * [netmiko](https://github.com/ktbyers/netmiko) - Multi-vendor network device SSH library
 * [tqdm](https://github.com/tqdm/tqdm) - Simple and extensible progress bars
-* [orionsdk](https://github.com/solarwinds/OrionSDK) - Query SolarWinds Orion using SWQL
+* [orionsdk](https://github.com/solarwinds/OrionSDK) - Query SolarWinds Orion for devices using SWQL
 
 ## Overview
 
+#### Background
 
-#### Purpose
-I wanted to take the heavy lifting (or you might say, monkey work ;) out of managing hundreds of network devices. Much of what netmonkey does, [NAPALM](https://github.com/napalm-automation/napalm) can do better. However, netmonkey is intentionally lightweight, lending itself well to basic one-off operations.
+I'm a junior network engineer in the K12 space, managing ~450 Cisco devices, spanning several disparate networks that we oversee. I found out very quickly that I would hate my job if I didn't find a way to somehow automate changes. You might say I wanted to take the monkey work out of my job ;)
 
-I work in K12 on disparate campus networks, so large-scale automation is mostly out of the question. This makes toolchains like NAPALM and Ansible a bit unwieldy, although I fully intend to learn and use them as much as possible.
+I signed up for @ktbyers' Python training course after finding it on /r/networking. I set up a dev environment on our Linux jumphost and tinkered with netmiko. Its power was clear to me, but all by itself, it's a bit unwieldy. I didn't want to create device objects by hand, or store credentials in plaintext, among other things.
 
+Some other requirements I came up with:
+* Detect ssh/telnet support on-the-fly (yes, I know...)
+* Request credentials in a fairly secure way, storing only in memory during runtime
+* Run sessions in parallel, because screenscraping IOS is *s.l.o.w.*
+* Provide several ways of supplying host lists
+   * Ad-hoc single host (as a string)
+   * Ad-hoc multiple hosts (as a list)
+   * Hosts from a plaintext file
+   * Retrieved directly from our NPM (SolarWinds Orion) providing optional filters (since they have a handy API and Python module!)
+* Run arbitrary show commands against any number of hosts, returning the output
+* Run arbitrary one-line configuration commands against any number of hosts, returning the output
+* Run custom functions that do whatever I want, parallelized against any number of hosts, with custom output (!)
+* Abstract away all the junk of creating the netmiko session objects, handling exceptions, etc.
+
+By the time I had a decent start, I looked more closely at [NAPALM](https://github.com/napalm-automation/napalm) and discovered I was basically re-implementing a very mature and robust framework, poorly. NAPALM provides a wrapper around netmiko (for IOS at least) providing some really awesome parsing methods. A NAPALM connection object gives you easy access to all kinds of info like device facts, port statistics, port info, NTP status, and more.
+
+As it stands, the `napalm-ios` module doesn't support transport selection (for dynamically selecting telnet over ssh). Once 0.08 drops, that will become an option, and I will very likely refactor netmonkey to use NAPALM objects instead of straight netmiko objects.
+
+#### Roadmap
+
+High on my priorities are:
+* Loosely coupling everything to my environment as much as possible, hopefully making it useful to others
+* Better SWQL syntax options
+* Running arbitrary batches of commands from a text file (instead of only one-line commands)
+* Better testing and exception handling
 
 #### Limitations
 
-As a pet project, this comes with some fine print for now:
+**Disclaimer:** This is a pet project in its infancy. Its main purpose is to give me a learning experience to hack away with, while also making my day job easier. Feel free to contribute or make suggestions, but don't expect miracles. You are responsible for testing, etc.
+
+The fine print:
 
 * **Tightly coupled to Cisco IOS.** We are a 99% Cisco shop, so I didn't abstract the code on my first run. Since netmiko supports many vendors, this will be easy to change.
 * **Not extensively tested.** Don't expect miracles, use at your own risk.
 * **Assumes SolarWinds Orion.** Uses SWQL to query Orion for devices based on custom properties for my environment. Have a look at the `get_devices()` method for info on how to set it up, and how you might adapt it to your environment.
 
+#### Known Issues
+
+Most common exception types are handled gracefully, but recently I saw a random NetMikoTimeoutException when processing a large batch of hosts. The error was transient, so I couldn't dive deeper.
+
 #### Conventions
 
-* Wherever the keyword or variable `host` is used in the source, this refers to any routable identifier for a device: IP address, hostname, or FQDN.
-* All functions accept single hostnames (strings), lists, or custom SWQL queries for host targets
+* Wherever the keyword or variable `host` is used in the source, this refers to any routable identifier for a device: IP address, hostname, or FQDN. You can use all 3 options interchangeably. Of course, hostnames and FQDNs need to resolve properly.
+* All functions accept single hostnames (strings), lists, text files with one host per line, or custom SWQL queries
 
 ## Usage
 
