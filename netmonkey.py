@@ -274,6 +274,15 @@ def print_results(results):
             for k, v in output.iteritems():
                 print " - %s: %s" % (k, v)
 
+def print_errors(results):
+    """ Prints results from command() in human-readable format, omitting
+        successful connections, i.e. status == 0
+    """
+
+    for result in results:
+        for hostname, output in result.iteritems():
+            print "%s\t%s: %s" % (hostname, output['status'], output['message'])
+
 def command(target, cmd_type, cmd, result_list=None):
     """ Runs arbitrary commands or functions against a single target device. """
 
