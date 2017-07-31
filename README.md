@@ -8,20 +8,20 @@ A simple Python framework for managing network devices, leveraging `netmiko` and
 
 * Detect ssh/telnet support on-the-fly (yes, a few of our devices still use telnet...welcome to K12)
 * Request credentials at run-time, storing only in memory (nothing stored to disk)
-* Run everything in parallel, massively speeding up operations on multiple devices, with a neat little progress bar, thanks to ``tqdm`
+* Leverages `multiprocessing.Pool()` to run everything in parallel, massively speeding up operations on multiple devices, with a neat little progress bar, thanks to `tqdm`
 * Provide several ways of supplying hostnames/IPs:
    * Ad-hoc single host (as a `string`, e.g. `'172.16.35.240'`)
    * Ad-hoc multiple hosts (as a `list`, e.g. `['rtr1', '10.250.2.4', 'sw02']`)
    * Hosts from a plaintext file, one hostname/IP per line
-   * Retrieved directly from our NPM (SolarWinds Orion), constructin filters on-the-fly
-* Run arbitrary show commands against any number of hosts, returning the output
+   * Retrieved directly from our NPM (SolarWinds Orion)
+* Run arbitrary show commands against any number of hosts, returning the output in an object format suitable for futher parsing
 * Run arbitrary one-line configuration commands against any number of hosts, returning the output
-* Run custom functions that do whatever I want, parallelized against any number of hosts, with custom return codes and output
+* Run custom functions that do whatever I want, parallelized against any number of hosts, with custom return codes and messages
 * Abstract away all the junk of requesting credentials, creating the `netmiko` session objects, handling exceptions, etc.
 
 ## Requires
 
-* Python 2.7 on unix-like OS (Linux, MacOS)
+* Python 2.7 on unix-like OS (Linux, MacOS). Likely wouldn't take much work to add Windows support.
 * [netmiko](https://github.com/ktbyers/netmiko) - Multi-vendor network device SSH library
 * [tqdm](https://github.com/tqdm/tqdm) - Simple and extensible progress bars
 * [orionsdk](https://github.com/solarwinds/OrionSDK) - Query SolarWinds Orion for devices using SWQL
@@ -29,6 +29,9 @@ A simple Python framework for managing network devices, leveraging `netmiko` and
 ## Usage
 
 ### Run a `show` command
+
+**Worth mentioning**: SNMP is generally a faster way to get info. This is just for fun.
+
 `netmonkey.show()` accepts two paramters: the `show` command to run, and device(s) to run against. The method automatically prepends "show " to the command, so `show ip int br` would be called as `netmonkey.show('ip int br', 'rtr1')`
 ```py
 >>> from netmonkey import netmonkey
@@ -71,7 +74,7 @@ netmonkey.get_devices(name="sw*") # Retrieves all devices with hostnames beginni
 
 ### Combine the two
 
-```py
+```
 >>> print netmonkey.show('snmp location', netmonkey.get_devices(name="sw*"))
 Orion username [austind]:
 Orion password:
@@ -102,7 +105,7 @@ Output follows a list/dictionary format to make it easier for further programmat
 
 Maybe you don't want to further parse the output, and you just want to see it in a human-readable format.
 
-```py
+```
 >>> results = netmonkey.show('snmp location', netmonkey.get_devices(name="sw*"))
 # password prompts and progress bar omitted
 >>> netmonkey.print_results(results)
@@ -200,16 +203,14 @@ As it stands, the `napalm-ios` module doesn't support transport selection (for d
 ### Roadmap
 
 High on my priorities are:
-* Loosely coupling everything to my environment as much as possible, hopefully making it useful to others
+* Loosely coupling everything to my environment as much as possible, hopefully making it more directly useful to others
 * Better SWQL syntax options
-* Running arbitrary batches of commands from a text file (instead of only one-line commands)
+* Running arbitrary batches of commands from a text file (instead of only one-line config commands)
 * Better testing and exception handling
 
 ### Limitations
 
 **Disclaimer:** This is a pet project in its infancy. Its main purpose is to give me a learning experience to hack away with, while also making my day job easier. Feel free to contribute or make suggestions, but don't expect miracles. You are responsible for testing, etc.
-
-The fine print:
 
 * **Tightly coupled to Cisco IOS.** We are a 99% Cisco shop, so I didn't abstract the code on my first run. Since netmiko supports many vendors, this will be easy to change.
 * **Not extensively tested.** Don't expect miracles, use at your own risk.
