@@ -296,16 +296,14 @@ def save_results(results, filename, errlvl=0):
 
         WARNING: Overwrites 'filename' without prompt or warning
     """
-    handle = open(filename, 'w')
+    f = open(filename, 'w')
 
     for result in results:
         for hostname, output in result.iteritems():
             if output['status'] >= errlvl:
-                handle.write(hostname.split(':')[0]
+                f.write(hostname + '\n')
 
-    handle.close()
-    return
-                
+    f.close()
 
 def command(target, cmd_type, cmd, result_list=None):
     """ Runs arbitrary commands or functions against a single target device. """
