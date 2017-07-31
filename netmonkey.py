@@ -283,6 +283,30 @@ def print_results(results, errlvl=0):
             if output['status'] >= errlvl:
                 print "%s:%s - [%s] %s" % (hostname, output['port'], output['status'], output['message'])
 
+def save_results(results, filename, errlvl=0):
+    """ Saves results to a file
+
+        Resulting filename can be supplied to get_devices() to make future
+        operations quicker.
+
+        The behavior of this method is likely to change in the future.
+
+        For now, it takes a results list and saves it as a plaintext file with
+        one host per line.
+
+        WARNING: Overwrites 'filename' without prompt or warning
+    """
+    handle = open(filename, 'w')
+
+    for result in results:
+        for hostname, output in result.iteritems():
+            if output['status'] >= errlvl:
+                handle.write(hostname.split(':')[0]
+
+    handle.close()
+    return
+                
+
 def command(target, cmd_type, cmd, result_list=None):
     """ Runs arbitrary commands or functions against a single target device. """
 
@@ -478,7 +502,7 @@ def batch(targets, worker, argument_list=None, threads=THREADS):
     pool.close()
     
     for result in tqdm(results, desc='Progress', unit='Device', ascii=True):
-        result.get(timeout=60)
+        result.get(timeout=120)
     
     
     # Progress bar
