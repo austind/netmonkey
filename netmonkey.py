@@ -246,6 +246,8 @@ def connect(host):
                 raise
 
 def write_config(session):
+    if session.check_config_mode():
+        session.exit_config_mode()
     return session.send_command_expect('copy running-config startup-config')
 
 def backup_config(session):
